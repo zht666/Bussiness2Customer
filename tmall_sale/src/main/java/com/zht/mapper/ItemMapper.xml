@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zht.mapper.ItemMapper">
+
+	<select id="select_skuList_by_spu" parameterType="int"
+		resultType="com.zht.bean.T_MALL_SKU">
+		select * from t_mall_sku where shp_id = #{spu_id}
+	</select>
+
+
+	<!-- 一个复合型的java对象一定对应着resultMap，后台一定对应着多表联合的查询 -->
+	<select id="select_detail_sku" parameterType="Map"
+		resultMap="select_detail_sku_map">
+		SELECT
+		sku.Id AS sku_id,
+		spu.id AS spu_id,
+		img.id AS img_id,
+		attr.shxm_mch AS shxm_mch,
+		CONCAT(val.shxzh, val.shxzh_mch) AS shxzh_mch,
+		sku.*, spu.*, img.*
+		FROM
+		t_mall_sku sku,
+		t_mall_product spu,
+		t_mall_product_image img,
+		t_mall_attr attr,
+		t_mall_value val,
+		t_mall_sku_attr_value av
+		WHERE
+		sku.shp_id = spu.Id
+		AND spu.Id = img.shp_id
+		AND sku.Id = av.sku_id
+		AND av.shxm_id = attr.Id
+		AND av.shxzh_id = val.Id
+		AND sku.Id = #{sku_id}
+	</select>
+
+	<resultMap type="com.zht.bean.DETAIL_T_MALL_SKU"
+		id="select_detail_sku_map" autoMapping="true">
+		<id column="sku_id" property="id" />
+		<association property="spu"
+			javaType="com.zht.bean.T_MALL_PRODUCT" autoMapping="true">
+			<id column="spu_id" property="id"/>
+		</association>
+		<collection property="list_image"
+			ofType="com.zht.bean.T_MALL_PRODUCT_IMAGE" autoMapping="true">
+			<id column="img_id" property="id"/>
+		</collection>
+		<collection property="list_av_name"
+			ofType="com.zht.bean.OBJECT_AV_NAME" autoMapping="true">
+			
+		</collection>
+	</resultMap>
+
+
+</mapper>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zht.mapper.AttrMapper">
+
+	<!--口诀： 前端controller符合型的，或者内外嵌套的java对象的集合，一定会对应着后端dao层的resultMap
+	    一个resultMap一定会对应着数据库的多表联合查询语句 -->
+	<select id="select_attr_list" parameterType="int" resultMap="select_attr_list_map">
+		select attr.id as attr_id, attr.*, val.id as val_id, val.*
+		from t_mall_attr attr, t_mall_value val 
+		where attr.id = val.shxm_id and flbh2 = #{flbh2}
+	</select>
+	<!-- autoMapping="true"：自动映射策略，这里对OBJECT_T_MALL_ATTR自动映射 -->
+	<resultMap type="com.zht.bean.OBJECT_T_MALL_ATTR" id="select_attr_list_map"
+		autoMapping="true">
+		<!-- column：是查询到的id，property：是自动映射的id
+			 把某一张表的主键自动关联到OBJECT_T_MALL_ATTR上，其他字段MyBatis会自动管理 -->
+		<result column="attr_id" property="id"/>
+		<!-- 内存循环集合，property：集合的名称，ofType：集合的类型 -->
+		<collection property="list_value" ofType="com.zht.bean.T_MALL_VALUE"
+			autoMapping="true">
+			<result column="val_id" property="id"/>
+		</collection>
+		
+		<!-- 对象类型的数据用association -->
+<!-- 		<association property=""></association> -->
+		<!-- 集合类型的数据用collection -->
+<!-- 		<collection property=""></collection> -->
+	</resultMap>
+
+	<!-- MyBatis的主键返回策略：在插入完商品信息之后，让数据库把新加入的主键返回回来
+	     keyColumn：数据库生成主键的字段名，keyProperty：参数，所插入对象中的属性id -->
+	<insert id="insert_attr" useGeneratedKeys="true" keyColumn="id" keyProperty="attr.id">
+		insert into t_mall_attr(shxm_mch,flbh2) 
+		values(#{attr.shxm_mch},#{flbh2})
+	</insert>
+	
+	<insert id="insert_values">
+		insert into t_mall_value(shxzh,shxm_id,shxzh_mch)
+		values
+		<foreach collection="list_value" item="val" separator=",">
+			(#{val.shxzh},#{attr_id},#{val.shxzh_mch})
+		</foreach>
+	</insert>
+	
+<!-- 	<select id="select_attr_list" resultType="com.zht.bean.OBJECT_T_MALL_ATTR"> -->
+<!-- 		select * from t_mall_attr -->
+<!-- 	</select> -->
+	
+<!-- 	<select id="select_value_list" resultType="com.zht.bean.T_MALL_VALUE"> -->
+<!-- 		select * from t_mall_value -->
+<!-- 	</select> -->
+	
+</mapper>

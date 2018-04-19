@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.zht.mapper.SpuMapper">
+
+	<select id="select_spu_list" parameterType="Map" resultType="com.zht.bean.T_MALL_PRODUCT">
+		select * from t_mall_product where pp_id = #{pp_id} and flbh2 = #{flbh2}
+	</select>
+
+	<!-- MyBatis的主键返回策略：在插入完商品信息之后，让数据库把新加入的主键返回回来
+	     keyColumn：数据库生成主键的字段名，keyProperty：参数，所插入对象T_MALL_PRODUCT中的属性id -->
+	<insert useGeneratedKeys="true" keyColumn="id" keyProperty="id"
+		id="insert_spu" parameterType="com.zht.bean.T_MALL_PRODUCT">
+		insert into t_mall_product(shp_mch,shp_tp,flbh1,flbh2,pp_id,shp_msh) 
+		values(#{shp_mch},#{shp_tp},#{flbh1},#{flbh2},#{pp_id},#{shp_msh})
+	</insert>
+	
+	<insert id="insert_images" parameterType="Map">
+		insert into t_mall_product_image(shp_id,url)
+		values
+		<foreach collection="list_image" item="image" separator=",">
+			(#{shp_id},#{image})
+		</foreach>
+	</insert>
+	
+	
+</mapper>

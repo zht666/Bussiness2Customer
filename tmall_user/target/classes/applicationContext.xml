@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx" xmlns:jaxws="http://cxf.apache.org/jaxws"
+	xmlns:jaxrs="http://cxf.apache.org/jaxrs"
+	xsi:schemaLocation="
+       http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       http://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/jdbc 
+       http://www.springframework.org/schema/jdbc/spring-jdbc.xsd
+               http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop.xsd
+                http://www.springframework.org/schema/tx
+        http://www.springframework.org/schema/tx/spring-tx.xsd
+        http://cxf.apache.org/jaxws
+        http://cxf.apache.org/schemas/jaxws.xsd
+                http://cxf.apache.org/jaxrs
+        http://cxf.apache.org/schemas/jaxrs.xsd
+       ">
+
+	<context:property-placeholder location="classpath:dbConfig.properties" />
+
+	<context:component-scan base-package="com.zht.service"
+		use-default-filters="false">
+		<context:include-filter type="annotation"
+			expression="org.springframework.stereotype.Service" />
+	</context:component-scan>
+
+	<bean id="dataSource1" class="org.apache.commons.dbcp.BasicDataSource">
+		<property name="driverClassName" value="${driverClassName}" />
+		<property name="url" value="${url1}" />
+		<property name="username" value="${jdbc.username}" />
+		<property name="password" value="${jdbc.password}" />
+	</bean>
+
+	<bean id="dataSource2" class="org.apache.commons.dbcp.BasicDataSource">
+		<property name="driverClassName" value="${driverClassName}" />
+		<property name="url" value="${url2}" />
+		<property name="username" value="${jdbc.username}" />
+		<property name="password" value="${jdbc.password}" />
+	</bean>
+		
+	<bean id="dataSource" class="com.zht.util.MyRoutingDataSource">
+		<property name="targetDataSources">
+			<map key-type="java.lang.String"><!-- 一般用DataSource，key的类型用String -->
+				<entry key="1" value-ref="dataSource1"></entry>
+				<entry key="2" value-ref="dataSource2"></entry>
+			</map>
+		</property>
+		<property name="defaultTargetDataSource" ref="dataSource1"></property><!-- 如果没有相应key的数据源，就给一个默认值 -->
+	</bean>
+	
+	<bean id="sqlSessionFactoryBean" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="configLocation" value="classpath:mybatis-config.xml" />
+	</bean>
+
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.zht.mapper" />
+		<property name="sqlSessionFactoryBeanName" value="sqlSessionFactoryBean" />
+	</bean>
+
+	<bean id="myCallback" class="com.zht.util.MyCallback"></bean>
+	
+	<!-- 配置拦截器 -->
+	<bean id="in" class="org.apache.cxf.ws.security.wss4j.WSS4JInInterceptor">
+		<constructor-arg>
+			<map key-type="java.lang.String">
+				<entry key="action" value="UsernameToken"></entry><!-- 配置拦截器参数 -->
+				<entry key="passwordType" value="PasswordText"></entry><!-- 配置拦截器参数 -->
+				<entry key="passwordCallbackRef" value-ref="myCallback"></entry><!-- 配置拦截器在进行拦截时的回调函数 -->
+			</map>
+		</constructor-arg>
+	</bean>
+
+	<!-- SOAP风格 -->
+	<!-- 相当于在spring容器中启动了web服务的端点 ，web服务端点的地址用的是Tomcat地址，后缀名使用的是ws -->
+	<jaxws:endpoint address="/ws" implementorClass="com.zht.server.TestServer">
+		
+		<!-- 安全令牌拦截器 -->
+		<jaxws:inInterceptors>
+			<ref bean="in"/>
+		</jaxws:inInterceptors>
+		<jaxws:implementor><!-- 实现类 -->
+			<bean class="com.zht.server.TestServerImpl"></bean>
+		</jaxws:implementor>
+	</jaxws:endpoint>
+	
+	<jaxws:endpoint address="/login" 
+			implementorClass="com.zht.server.LoginServer">
+		<jaxws:implementor><!-- 实现类 -->
+			<bean class="com.zht.server.LoginServerImpl"></bean>
+		</jaxws:implementor>
+	</jaxws:endpoint>
+	
+	<jaxws:endpoint address="/address" 
+			implementorClass="com.zht.server.AddressServerInf">
+		<jaxws:implementor><!-- 实现类 -->
+			<bean class="com.zht.server.AddressServerImp"></bean>
+		</jaxws:implementor>
+	</jaxws:endpoint>
+	
+	<!-- REST风格 --> 
+	<jaxrs:server address="/loginRest">
+		<jaxrs:serviceBeans>
+			<bean class="com.zht.server.LoginServerImpl"></bean>
+		</jaxrs:serviceBeans>
+	</jaxrs:server>
+	
+	<!-- 配置数据源事务管理 -->
+	<bean id="txManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource"></property>
+	</bean>
+	
+	<!-- 配置管理器组件，配置通知 -->
+	<tx:advice transaction-manager="txManager" id="txAdvice">
+		<tx:attributes>
+			<!-- 配置被代理的方法，*代表所有方法，propagation代表事务传播属性，rollback-for回滚策略 -->
+			<tx:method name="*" propagation="REQUIRED" rollback-for="java.lang.Exception"/>
+		</tx:attributes>
+	</tx:advice>
+	
+	<!-- 用切入点表达式,将通知(事务管理器)和连接点(需要被代理的业务层的方法们)整合-->
+	<!-- 切入点表达式：访问权限、返回值任意；com.zht包及其子包；类名或接口名；方法名任意；参数列表任意 -->  
+	<aop:config>
+		<aop:pointcut expression="execution(* com.zht.service..*.*(..))" id="pointcut"/><!-- 先有切面 -->
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="pointcut"/><!-- 再有通知 -->
+	</aop:config>
+	
+	<!-- 通过注解配置事务 -->
+<!-- 	<tx:annotation-driven/> -->
+	
+
+</beans>
+	

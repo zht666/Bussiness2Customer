@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:dubbo="http://code.alibabatech.com/schema/dubbo"
+	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd
+		http://code.alibabatech.com/schema/dubbo http://code.alibabatech.com/schema/dubbo/dubbo.xsd">
+
+	<context:property-placeholder location="classpath:dbConfig.properties,classpath:ws.properties" />
+
+	<context:component-scan base-package="com.zht.service"
+		use-default-filters="false">
+		<context:include-filter type="annotation"
+			expression="org.springframework.stereotype.Service" />
+	</context:component-scan>
+
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
+		<property name="driverClassName" value="${driverClassName}" />
+		<property name="url" value="${url}" />
+		<property name="username" value="${jdbc.username}" />
+		<property name="password" value="${jdbc.password}" />
+	</bean>
+
+	<bean id="sqlSessionFactoryBean" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="configLocation" value="classpath:mybatis-config.xml" />
+	</bean>
+
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.zht.mapper" />
+		<property name="sqlSessionFactoryBeanName" value="sqlSessionFactoryBean" />
+	</bean>
+	
+	<!-- 远程调用webservice的server -->
+	<bean id="loginServer" class="com.zht.util.MyWsFactoryBean">
+		<property name="url" value="${login_url}"></property>
+		<property name="t" value="com.zht.server.LoginServer"></property>
+	</bean>
+	
+	<bean id="testServer" class="com.zht.util.MyWsFactoryBean">
+		<property name="url" value="${test_url}"></property>
+		<property name="t" value="com.zht.server.TestServer"></property>
+	</bean>
+	
+	<bean id="addressServer" class="com.zht.util.MyWsFactoryBean">
+		<property name="url" value="${address_url}"></property>
+		<property name="t" value="com.zht.server.AddressServerInf"></property>
+	</bean>
+	
+	<!-- 配置数据源事务管理 -->
+	<bean id="txManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource"></property>
+	</bean>
+	
+	<!-- 配置管理器组件，配置通知 -->
+	<tx:advice transaction-manager="txManager" id="txAdvice">
+		<tx:attributes>
+			<!-- 配置被代理的方法，*代表所有方法，propagation代表事务传播属性，rollback-for回滚策略 -->
+			<tx:method name="*" propagation="REQUIRED" rollback-for="java.lang.Exception"/>
+		</tx:attributes>
+	</tx:advice>
+	
+	<!-- 用切入点表达式,将通知(事务管理器)和连接点(需要被代理的业务层的方法们)整合-->
+	<!-- 切入点表达式：访问权限、返回值任意；com.zht包及其子包；类名或接口名；方法名任意；参数列表任意 -->  
+	<aop:config>
+		<aop:pointcut expression="execution(* com.zht.service..*.*(..))" id="pointcut"/><!-- 先有切面 -->
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="pointcut"/><!-- 再有通知 -->
+	</aop:config>
+	
+	<!-- 通过注解配置事务 -->
+<!-- 	<tx:annotation-driven/> -->
+	
+	<!-- spring整合mq发布任务消息 -->
+	<!-- jms消息工厂 -->
+	<bean id="targetConnectionFactory"
+		class="org.apache.activemq.ActiveMQConnectionFactory">
+		<property name="brokerURL" value="tcp://localhost:61616" />
+	</bean>
+	<bean id="connectionFactory"
+		class="org.springframework.jms.connection.SingleConnectionFactory">
+		<!--产生JMS Connection的ConnectionFactory -->
+		<property name="targetConnectionFactory"
+			ref="targetConnectionFactory" />
+	</bean>
+
+	<!-- MQ执行模板，mq把自己new在spring里面，然后把它转化成jms，其他的都由jms组件来完成 -->
+	<!-- 执行消息任务的模板 -->
+	<bean id="jmsTemplate"
+		class="org.springframework.jms.core.JmsTemplate"><!-- 通过spring执行mq的工具类 -->
+		<property name="connectionFactory" ref="connectionFactory" />
+	</bean>
+	<bean id="queueDestination"
+		class="org.apache.activemq.command.ActiveMQQueue">
+		<constructor-arg value="queue" />
+	</bean>
+	<bean id="topicDestination"
+		class="org.apache.activemq.command.ActiveMQTopic">
+		<constructor-arg value="topic" />
+	</bean>
+	
+	
+	
+
+</beans>
